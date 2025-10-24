@@ -1,0 +1,380 @@
+DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Payroll Voucher Check (Top Check + Two Stubs)</title>
+<style>
+  /* ---------- Print and page setup ---------- */
+  @page { size: letter; margin: 0.5in; }
+  html, body { height: 100%; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    margin: 0; color: #111; background: #f6f7f9;
+  }
+  .sheet {
+    width: 8.5in; min-height: 11in; margin: 0 auto; background: white;
+    box-shadow: 0 0.05in 0.2in rgba(0,0,0,.15); position: relative;
+    box-sizing: border-box; padding: 0.25in;
+  }
+  .noprint { display: block; }
+  @media print {
+    body { background: white; }
+    .sheet { box-shadow: none; margin: 0; width: auto; min-height: auto; padding: 0; }
+    .noprint { display: none !important; }
+  }
+
+  /* ---------- Layout (Top check + 2 stubs) ---------- */
+  .panel { border: 1px solid #d5dae1; box-sizing: border-box; padding: 0.2in; position: relative; }
+  .panel + .panel { margin-top: 0.15in; }
+
+  .check { height: 3.5in; }
+  .stub { height: 3.75in; }
+
+  /* Perforation guides (visual only) */
+  .perf {
+    position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed #9aa4b2;
+  }
+  .perf.top { top: 3.65in; }    /* just below the check */
+  .perf.mid { top: 7.55in; }    /* between stubs */
+
+  /* ---------- Utility ---------- */
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.1in; }
+  .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.1in; }
+  .muted { color: #6b7280; font-size: 0.92em; }
+  .right { text-align: right; }
+  .bold { font-weight: 700; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+  /* ---------- Check header ---------- */
+  .brand { display: grid; grid-template-columns: auto 1fr; gap: 0.2in; align-items: center; }
+  .logo {
+    width: 0.8in; height: 0.8in; border: 1px solid #cbd5e1; border-radius: 8px;
+    display: grid; place-items: center; font-size: 0.75em; color: #64748b;
+  }
+  .brand h1 { margin: 0; font-size: 1.05em; }
+  .brand .address { white-space: pre-line; }
+
+  .payline {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 0.15in; align-items: end;
+    margin-top: 0.2in;
+  }
+  .payline .label { font-size: 0.78em; color: #6b7280; }
+  .field { border-bottom: 1px solid #cbd5e1; padding: 0.04in 0; }
+  .amount-box {
+    border: 1px solid #94a3b8; padding: 0.06in 0.12in; min-width: 1.2in; text-align: right; font-weight: 700;
+  }
+
+  .line { display: grid; grid-template-columns: auto 1fr; gap: 0.15in; align-items: end; margin-top: 0.12in; }
+  .memo-sign { display: grid; grid-template-columns: 1fr auto; gap: 0.2in; margin-top: 0.25in; align-items: end; }
+  .sign-line { border-bottom: 1px solid #cbd5e1; padding: 0.12in 0; width: 2.6in; text-align: center; color: #6b7280; font-size: 0.8em; }
+
+  /* ---------- MICR line ---------- */
+  .micr-wrap { position: absolute; left: 0.2in; right: 0.2in; bottom: 0.25in; }
+  .micr {
+    /* Install + use a MICR E-13B font locally or in print driver for machine readability */
+    font-family: "MICR E13B", "MICR", "OCRB", monospace;
+    font-size: 14pt; letter-spacing: 0.02em;
+  }
+  .micr-tip { font-size: 0.7em; color: #6b7280; }
+
+  /* ---------- Stub tables ---------- */
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border-bottom: 1px solid #e5e7eb; padding: 0.1in 0.06in; font-size: 0.9em; }
+  th { text-align: left; color: #374151; background: #f8fafc; }
+  tfoot td { font-weight: 700; }
+  .stub-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.15in; }
+  .stub-header h2 { margin: 0; font-size: 0.98em; }
+  .stub-meta { font-size: 0.86em; color: #6b7280; }
+
+  /* ---------- Controls ---------- */
+  .toolbar {
+    max-width: 8.5in; margin: 0.6rem auto; display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: space-between; align-items: center;
+  }
+  .toolbar .btn {
+    border: 1px solid #cbd5e1; background: white; padding: 0.45rem 0.7rem; border-radius: 0.5rem;
+    cursor: pointer; font-weight: 600;
+  }
+  .toolbar small { color: #64748b; }
+</style>
+</head>
+<body>
+
+<div class="toolbar noprint">
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+    <button class="btn" onclick="window.print()">Print</button>
+    <button class="btn" onclick="demoFill()">Load Demo Data</button>
+  </div>
+  <small>
+    Tip: Commit this file to a GitHub repo. For GitHub Pages, enable Pages and open the file URL to print.  
+    Use a MICR E-13B font for the bottom line if you need bank machine readability.
+  </small>
+</div>
+
+<div class="sheet" id="sheet">
+
+  <!-- Top Check -->
+  <div class="panel check" id="check-panel">
+    <div class="brand">
+      <div class="logo">LOGO</div>
+      <div>
+        <h1 id="company_name">Your Company, LLC</h1>
+        <div class="address muted" id="company_address">123 Business Rd
+City, ST 12345</div>
+      </div>
+      <div class="right">
+        <div class="muted">Check No.</div>
+        <div class="field right bold mono" id="check_number">1001</div>
+        <div class="muted" style="margin-top:0.1in;">Date</div>
+        <div class="field right mono" id="check_date">2025-10-24</div>
+      </div>
+    </div>
+
+    <div class="payline">
+      <div class="label">Pay to the Order of</div>
+      <div class="field" id="payee_name">Employee Name</div>
+      <div class="amount-box mono" id="amount">$0.00</div>
+    </div>
+
+    <div class="line">
+      <div class="label">Amount (words)</div>
+      <div class="field" id="amount_words">Zero and 00/100 Dollars</div>
+    </div>
+
+    <div class="line">
+      <div class="label">Payee Address</div>
+      <div class="field" id="payee_address">123 Main St · City, ST 12345</div>
+    </div>
+
+    <div class="memo-sign">
+      <div class="line">
+        <div class="label">Memo</div>
+        <div class="field" id="memo">Payroll</div>
+      </div>
+      <div class="sign-line">AUTHORIZED SIGNATURE</div>
+    </div>
+
+    <div class="micr-wrap">
+      <div class="micr" id="micr_line">t 000000000 t 0000000000 o 01001 o</div>
+      <div class="micr-tip muted">Routing / Account / Check No. (render with MICR E-13B where “t”=transit, “o”=on-us)</div>
+    </div>
+  </div>
+
+  <div class="perf top"></div>
+
+  <!-- Stub 1 -->
+  <div class="panel stub" id="stub1">
+    <div class="stub-header">
+      <h2>PAYROLL STUB</h2>
+      <div class="stub-meta">
+        Period: <span id="period_start">2025-10-12</span>–<span id="period_end">2025-10-24</span> ·
+        Employee: <span id="emp_id">E-1027</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="muted">Employee</div>
+        <div class="bold" id="emp_name">Employee Name</div>
+        <div class="muted" id="emp_addr">123 Main St · City, ST 12345</div>
+      </div>
+      <div class="right">
+        <div class="muted">Net Pay</div>
+        <div class="bold" id="net_pay">$0.00</div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:0.2in;">
+      <div>
+        <table id="earnings_table">
+          <thead>
+            <tr><th>Earnings</th><th class="right">Hours/Units</th><th class="right">Rate</th><th class="right">Amount</th></tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot>
+            <tr><td colspan="3" class="right">Total Earnings</td><td class="right" id="earnings_total">$0.00</td></tr>
+          </tfoot>
+        </table>
+      </div>
+      <div>
+        <table id="deductions_table">
+          <thead>
+            <tr><th>Deductions</th><th class="right">Amount</th></tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot>
+            <tr><td class="right">Total Deductions</td><td class="right" id="deductions_total">$0.00</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="perf mid"></div>
+
+  <!-- Stub 2 (employer copy) -->
+  <div class="panel stub" id="stub2">
+    <div class="stub-header">
+      <h2>EMPLOYER COPY</h2>
+      <div class="stub-meta">
+        Check No. <span id="stub_check_no">1001</span> · Net Pay <span id="stub_net_pay">$0.00</span>
+      </div>
+    </div>
+
+    <div class="row-3">
+      <div>
+        <div class="muted">YTD Earnings</div>
+        <div class="bold" id="ytd_earnings">$0.00</div>
+      </div>
+      <div>
+        <div class="muted">YTD Deductions</div>
+        <div class="bold" id="ytd_deductions">$0.00</div>
+      </div>
+      <div class="right">
+        <div class="muted">YTD Net</div>
+        <div class="bold" id="ytd_net">$0.00</div>
+      </div>
+    </div>
+
+    <div style="margin-top:0.2in;">
+      <table id="summary_table">
+        <thead>
+          <tr><th>Description</th><th class="right">Amount</th></tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr><td class="right">This Check Net</td><td class="right" id="stub2_net">$0.00</td></tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ---------- Minimal data model & helpers ---------- */
+function money(n){ return (Number(n)||0).toLocaleString(undefined,{style:'currency',currency:'USD'}); }
+
+function fill(data){
+  // Company & check
+  document.getElementById('company_name').textContent = data.company?.name || '';
+  document.getElementById('company_address').textContent = data.company?.address || '';
+  document.getElementById('check_number').textContent = data.check?.number || '';
+  document.getElementById('check_date').textContent = data.check?.date || '';
+  document.getElementById('payee_name').textContent = data.payee?.name || '';
+  document.getElementById('payee_address').textContent = data.payee?.address || '';
+  document.getElementById('amount').textContent = money(data.check?.amount);
+  document.getElementById('amount_words').textContent = data.check?.amount_words || '';
+  document.getElementById('memo').textContent = data.check?.memo || 'Payroll';
+
+  // MICR line (render with MICR E-13B font if installed)
+  document.getElementById('micr_line').textContent = data.micr || '';
+
+  // Stub meta
+  document.getElementById('period_start').textContent = data.period?.start || '';
+  document.getElementById('period_end').textContent = data.period?.end || '';
+  document.getElementById('emp_id').textContent = data.employee?.id || '';
+  document.getElementById('emp_name').textContent = data.employee?.name || '';
+  document.getElementById('emp_addr').textContent = data.employee?.address || '';
+  document.getElementById('net_pay').textContent = money(data.totals?.net);
+
+  // Earnings
+  const et = document.querySelector('#earnings_table tbody');
+  et.innerHTML = '';
+  let earnSum = 0;
+  (data.earnings||[]).forEach(e=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${e.name||''}</td>
+                    <td class="right">${e.units ?? ''}</td>
+                    <td class="right">${e.rate!=null ? money(e.rate) : ''}</td>
+                    <td class="right">${money(e.amount)}</td>`;
+    et.appendChild(tr);
+    earnSum += Number(e.amount)||0;
+  });
+  document.getElementById('earnings_total').textContent = money(earnSum);
+
+  // Deductions
+  const dt = document.querySelector('#deductions_table tbody');
+  dt.innerHTML = '';
+  let dedSum = 0;
+  (data.deductions||[]).forEach(d=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${d.name||''}</td>
+                    <td class="right">${money(d.amount)}</td>`;
+    dt.appendChild(tr);
+    dedSum += Number(d.amount)||0;
+  });
+  document.getElementById('deductions_total').textContent = money(dSum = dedSum);
+
+  // Net (calc if not given)
+  const net = data.totals?.net != null ? Number(data.totals.net) : (earnSum - dedSum);
+  document.getElementById('net_pay').textContent = money(net);
+  document.getElementById('stub_check_no').textContent = data.check?.number || '';
+  document.getElementById('stub_net_pay').textContent = money(net);
+  document.getElementById('stub2_net').textContent = money(net);
+
+  // YTD
+  document.getElementById('ytd_earnings').textContent = money(data.ytd?.earnings);
+  document.getElementById('ytd_deductions').textContent = money(data.ytd?.deductions);
+  document.getElementById('ytd_net').textContent = money(data.ytd?.net);
+
+  // Employer summary (copy)
+  const st = document.querySelector('#summary_table tbody');
+  st.innerHTML = '';
+  (data.summary||[
+    {name:'Gross', amount: earnSum},
+    {name:'Deductions', amount: dedSum},
+  ]).forEach(row=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${row.name||''}</td><td class="right">${money(row.amount)}</td>`;
+    st.appendChild(tr);
+  });
+}
+
+/* Load via ?data=... (base64 JSON) or demo button */
+function loadFromQuery(){
+  try{
+    const p = new URLSearchParams(location.search);
+    if(!p.has('data')) return;
+    const json = atob(p.get('data'));
+    const obj = JSON.parse(json);
+    fill(obj);
+  }catch(e){ console.warn('Failed to parse data param', e); }
+}
+
+function demoFill(){
+  const sample = {
+    company: { name: "No Sleep Gang, LLC", address: "500 Market St\nSt. Louis, MO 63101" },
+    check: {
+      number: "1245",
+      date: new Date().toISOString().slice(0,10),
+      amount: 780.00,
+      amount_words: "Seven Hundred Eighty and 37/100 Dollars",
+      memo: "Payroll"
+    },
+    micr: "t 08100032 t 354008055554 o 00616540 o",
+    payee: { name: "Eric Webb", address: "11000 St Ambrose Ln · St. Louis, MO 63074" },
+    employee: { id: "E-1027", name: "Eric Webb", address: "11000 St Ambrose Ln · St. Louis, MO 63074" },
+    period: { start: "2025-10-03", end: "2025-10-17" },
+    earnings: [
+      { name:"Regular", units: 60, rate: 13.00, amount: 780.00 },
+      { name:"Overtime", units:0 , rate: , amount: na },
+      { name:"Bonus", units: "0", rate: "", amount: na }
+    ],
+    deductions: [
+      { name:"Federal Tax", amount: 0 },
+      { name:"State Tax", amount: 15.60 },
+      { name:"FICA", amount: 59.70 },
+      { name:"Medicare", amount: 1.45 }
+    ],
+    ytd: { earnings: 51234.55, deductions: 11342.11, net: 39892.44 },
+    totals: { net: null },  // null = auto-calc
+    summary: null          // null = auto summary
+  };
+  fill(sample);
+}
+
+loadFromQuery();
+</script>
+</body>
+</html>
